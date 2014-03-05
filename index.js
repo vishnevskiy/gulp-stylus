@@ -2,6 +2,7 @@ var map = require('map-stream');
 var stylus = require('stylus');
 var gutil = require('gulp-util');
 var path = require('path');
+var fs = require('fs');
 
 module.exports = function (options) {
   var opts = options ? options : {};
@@ -13,7 +14,8 @@ module.exports = function (options) {
     if (file.isNull()) return cb(null, file); // pass along
     if (file.isStream()) return cb(new Error("gulp-stylus: Streaming not supported"));
 
-    var s = stylus(file.contents.toString('utf8'));
+    opts._imports = [];
+    var s = stylus(file.contents.toString('utf8'), opts);
     s.set('filename', file.path);
     s.set('paths', paths.concat([path.dirname(file.path)]));
 
@@ -58,6 +60,20 @@ module.exports = function (options) {
     s.render(function(err, css){
       if (err) return cb(err);
 
+      if (options.watch) {
+        function watchCallback() {
+          watchers.forEach(function(watcher) {
+            watcher.close();
+          });
+          options.watch();
+        }
+
+        var watchers = [fs.watch(file.path, watchCallback)];
+        opts._imports.forEach(function(import_) {
+          watchers.push(fs.watch(import_.path, watchCallback));
+        });
+      }
+      
       file.path = gutil.replaceExtension(file.path, '.css');
       file.contents = new Buffer(css);
 
